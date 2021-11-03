@@ -1,0 +1,31 @@
+library(ggplot2)
+library(dplyr)
+setwd('~/Desktop/HMH/')
+rna.tmp <- read.table('~/Desktop/Protein_data/RNA_seq/Merged TCGA PAN CANCER_clinical info_RNAseq_normalized count.txt', 
+                      header = T, sep= '\t', fill = T)
+saveRDS(rna.tmp, '~/Desktop/Protein_data/RNA_seq/rna.all.rds')
+protein <- read.table('~/Desktop/Protein_data/cMYC project/TCGA-PANCAN32-L4.txt', header = T,
+                      fill = T, sep = '\t', check.names = F)
+saveRDS(tcga.tmp, '~/Desktop/Protein_data/protein.all.rds')
+
+tmp <- readRDS('~/Desktop/Protein_data/protein.all.rds')
+gene <- 'CMYC'
+na.row <- tmp[,gene] %>% is.na() %>% which()
+tmp <- tmp[-na.row,]
+for(i in 1:length(levels(factor(tmp$Cancer_Type)))){
+  cancer.types <- levels(factor(tmp$Cancer_Type))
+  cancer.group <- cancer.types[i]
+  tmp.df <- tmp %>% filter(Cancer_Type == cancer.group) %>% data.frame()
+  tmp.df$group <- 'middle'
+  tmp.df[tmp.df[,gene] >= quantile(tmp[,gene])[[4]],'group'] <- 'high'
+  tmp.df[tmp.df[,gene] <= quantile(tmp[,gene])[[2]],'group'] <- 'low'
+  tmp.df <- tmp.df[tmp.df$vital_status %in% c('Alive', 'Dead'),]
+  tmp.df$status <- 0
+  tmp.df[tmp.df$vital_status == 'Dead','status'] <- 1
+  tmp.df <- tmp.df[tmp.df[,'group'] %in% c('high','low'),]
+  s <- survival::Surv(as.numeric(tmp.df$OS.time), tmp.df$status)
+  sf <- survival::survfit(s~Cancer_Type+group,data=tmp.df, type="kaplan-meier")
+  survminer::ggsurvplot(sf, pval=T)
+  ggsave(filename = paste0('~/Desktop/Protein_data/figure_11.03/',cancer.group,'.png'))
+}
+
